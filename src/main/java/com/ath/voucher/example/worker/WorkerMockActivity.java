@@ -27,7 +27,10 @@ public class WorkerMockActivity {
         // Here we ask the dao to request data and let us know when its done
         // if an identical request is made somewhere else in the app we are guaranteed that only 1 will execute.
         // but all subscribers will get notified just the same.
-        mDao.requestData()
+
+        int dataId = 0;
+
+        mDao.requestData( dataId )
                 .setHandlerMain() // optionally tell which thread to reply on
                 .setTimeout( 5000 ) // optionally set a timeout guaranteeing a callback
                 .subscribe( new VoucherResponse<MockData>() {

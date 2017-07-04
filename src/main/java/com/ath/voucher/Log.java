@@ -40,4 +40,10 @@ class Log {
     public static final void e( Throwable t ) {
         android.util.Log.e( LOG_TAG, t.getMessage(), t );
     }
+
+    public static void t( String format, Object... args ) {
+        if ( DEBUG ) { // fixme test
+            android.util.Log.v( LOG_TAG, String.format( format, args ) );
+        }
+    }
 }
