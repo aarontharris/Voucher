@@ -94,7 +94,7 @@ public class VoucherWorker {
                         } finally {
                             mLocks.unlock( generatedKey );
                         }
-                        vms.notifyVouchersClearCache( generatedKey, new VoucherPayload<>( (Object) resultPayload ) );
+                        vms.notifyVouchersClearCache( generatedKey, resultPayload );
                     }
                 } );
             } catch ( Exception e ) {

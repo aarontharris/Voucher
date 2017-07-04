@@ -72,9 +72,9 @@ public class VoucherPayload<DATA> {
 
     public String describe() {
         if ( getError() != null ) {
-            return getError().getMessage();
+            return getClass().getSimpleName() + ".error=" + getError().getMessage();
         }
-        return String.valueOf( getData() );
+        return getClass().getSimpleName() + ".data=" + String.valueOf( getData() );
     }
 
     @Override public String toString() {
