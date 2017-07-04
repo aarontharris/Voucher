@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -26,6 +25,19 @@ import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
  * Beware the default {@link VoucherPayload} cache policy, see {@link #setCachedPayloadTimeout(String, long)}.<br>
  */
 public class VoucherManager<DATA> {
+
+    /**
+     * Generates a namespaced key localized to the owner.<br>
+     * If the same owner calls the {@link #obtainLocalizedKey(Object, String)} twice with the same key, they will get the same value.<br>
+     * If another owner calls with the same key, the returned value will be localized to that owner.
+     *
+     * @param owner
+     * @param key
+     * @return
+     */
+    public static String obtainLocalizedKey( @NonNull Object owner, @NonNull String key ) {
+        return key + "." + owner.getClass().getName() + "[" + Integer.toHexString( owner.hashCode() ) + "]";
+    }
 
     static final int DEFAULT_TIMEOUT = 2000;
     private int mDefaultVoucherTimeoutMillis = DEFAULT_TIMEOUT;
@@ -273,9 +285,6 @@ public class VoucherManager<DATA> {
 
     @NeverThrows
     public Voucher<DATA> newVoucher( String key ) {
-        if ( key == null || key.isEmpty() ) {
-            key = UUID.randomUUID().toString();
-        }
         Voucher<DATA> voucher = new Voucher<>( this, key );
         register( voucher );
         return voucher;

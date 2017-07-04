@@ -13,6 +13,7 @@ import com.ath.voucher.threadhandlers.VoucherHandlers;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
 
@@ -28,6 +29,7 @@ public class Voucher<DATA> {
     private static final VoucherHandler WORKER_NEW_HANDLER = VoucherHandlers.getWorkerNewHandler();
     private static final VoucherHandler WORKER_RECYCLED_HANDLER = VoucherHandlers.getWorkerRecycledHandler();
     private final String mId;
+    private final String mName;
     private WeakAccessor<VoucherManager<DATA>> mManager;
     private VoucherResponse<DATA> mListener;
     private Watcher mWatcher;
@@ -40,6 +42,10 @@ public class Voucher<DATA> {
 
     Voucher( VoucherManager<DATA> manager, String idKey ) {
         mManager = new WeakAccessor<>( manager );
+        mName = idKey;
+        if ( idKey == null || idKey.isEmpty() ) {
+            idKey = UUID.randomUUID().toString();
+        }
         mId = idKey;
     }
 
@@ -52,8 +58,19 @@ public class Voucher<DATA> {
         mEnabled = false;
     }
 
-    public String getKey() {
+    /**
+     * Guaranteed non-null identifier for this voucher
+     * but not necessarily what the user entered.
+     */
+    @NonNull public String getKey() {
         return mId;
+    }
+
+    /**
+     * May be null and is exactly what the user entered.
+     */
+    @Nullable public String getName() {
+        return mName;
     }
 
     /**

@@ -19,6 +19,21 @@ public class VoucherWorker {
         RESULT doInBackground( INPUT input ) throws Exception;
     }
 
+    private static Executor DEFAULT_SHARED_EXECUTOR;
+
+    private static final Executor getDefaultSharedExecutor() {
+        if ( DEFAULT_SHARED_EXECUTOR == null ) {
+            DEFAULT_SHARED_EXECUTOR = new ThreadPoolExecutor(
+                    CORE_POOL_SIZE,
+                    MAX_POOL_SIZE,
+                    KEEP_LIFE_TIME_IN_SECOND,
+                    TimeUnit.SECONDS,
+                    new LinkedBlockingDeque( INITAL_CAPACITY )
+            );
+        }
+        return DEFAULT_SHARED_EXECUTOR;
+    }
+
     @SuppressWarnings( "unchecked" )
     private VoucherManager<Object> vms = VoucherManager.attain();
     private final NonReentrantLockPool mLocks = new NonReentrantLockPool();
@@ -29,13 +44,7 @@ public class VoucherWorker {
     }
 
     protected Executor initExecutor() {
-        return new ThreadPoolExecutor(
-                CORE_POOL_SIZE,
-                MAX_POOL_SIZE,
-                KEEP_LIFE_TIME_IN_SECOND,
-                TimeUnit.SECONDS,
-                new LinkedBlockingDeque( INITAL_CAPACITY )
-        );
+        return getDefaultSharedExecutor();
     }
 
     protected final Executor getExecutor() {
@@ -65,37 +74,70 @@ public class VoucherWorker {
     public final <INPUT, RESULT> Voucher<RESULT> enqueueVoucher( @Nullable String key, final INPUT input, final WorkerTask<INPUT, RESULT> task ) {
         @SuppressWarnings( "unchecked" )
         Voucher<RESULT> voucher = (Voucher<RESULT>) vms.newVoucher( key );
-        final String voucherKey = voucher.getKey();
+        final String originalKey = key;
+        final String generatedKey = voucher.getKey();
 
-        if ( mLocks.tryLock( voucherKey ) ) {
+        if ( mLocks.tryLock( generatedKey ) ) {
             try {
                 getExecutor().execute( new Runnable() {
                     @Override public void run() {
-                        RESULT result = null;
-                        Exception error = null;
+                        VoucherPayload resultPayload = null;
                         try {
-                            result = task.doInBackground( input );
-                            // cache ?
+                            resultPayload = cacheGet( originalKey, input ); // the literal key, not the generated one
+                            if ( resultPayload == null ) {
+                                RESULT result = task.doInBackground( input );
+                                resultPayload = new VoucherPayload<>( result );
+                                cachePut( originalKey, input, resultPayload ); // the literal key, not the generated one
+                            }
                         } catch ( Exception e ) {
-                            error = e;
+                            resultPayload = new VoucherPayload<>( e );
                         } finally {
-                            mLocks.unlock( voucherKey );
+                            mLocks.unlock( generatedKey );
                         }
-
-                        if ( error != null ) {
-                            vms.notifyVouchersClearCache( voucherKey, new VoucherPayload<>( error ) );
-                        } else {
-                            vms.notifyVouchersClearCache( voucherKey, new VoucherPayload<>( (Object) result ) );
-                        }
+                        vms.notifyVouchersClearCache( generatedKey, new VoucherPayload<>( (Object) resultPayload ) );
                     }
                 } );
             } catch ( Exception e ) {
                 // Failed to attain executor -- should be extremely rare if ever but we want to be thorough
-                vms.notifyVouchersClearCache( voucherKey, new VoucherPayload<>( e ) );
-                mLocks.unlock( voucherKey );
+                vms.notifyVouchersClearCache( generatedKey, new VoucherPayload<>( e ) );
+                mLocks.unlock( generatedKey );
             }
         }
 
         return voucher;
     }
+
+    /**
+     * If the Payload returned is not null, then the payload will be delivered to the vouchers in stead of executing the work.<br>
+     * The payload may have a null value if that is what you wish to return but a null vs not-null payload instance is what determines
+     * not-cached or cached respectively.
+     * <p>
+     * As is, implementing this will not prevent a worker thread from being started.
+     * If you wish to avoid the thread its up to your dao to decide whether or not to enqueue the job, best to check your cache first.
+     * <p>
+     * PS - you are expected to make sure the input and output type matching is satisfied.  Both input and output should match the input
+     * and output assicated with the key used when the request was queued.
+     *
+     * @param key
+     * @param input
+     * @return null if cache is not present, empty-voucher if value is not present.
+     */
+    protected VoucherPayload<?> cacheGet( String key, Object input ) {
+        return null;
+    }
+
+    /**
+     * Your thread safe hook to plugging the result into the cache.
+     * Up to you if you want to cache an error or not.
+     * <p>
+     * PS - you are expected to make sure the input and output type matching is satisfied.  Both input and output should match the input
+     * and output assicated with the key used when the request was queued.
+     *
+     * @param key
+     * @param input
+     * @param result
+     */
+    protected void cachePut( String key, Object input, VoucherPayload<?> result ) {
+    }
+
 }
