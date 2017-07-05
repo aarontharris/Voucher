@@ -30,7 +30,7 @@ public abstract class Watcher {
     private long mDelayMillis = 0;
     private boolean mEnabled = false;
 
-    public Watcher(long timeoutMillis) {
+    public Watcher( long timeoutMillis ) {
         mDelayMillis = timeoutMillis;
     }
 
@@ -46,7 +46,7 @@ public abstract class Watcher {
     }
 
     public final long getElapsed() {
-        long delta = (getNowMillis() - mWatchStartMillis);
+        long delta = ( getNowMillis() - mWatchStartMillis );
         return delta;
     }
 
@@ -57,13 +57,13 @@ public abstract class Watcher {
     public final Watcher start() {
         mWatchStartMillis = getNowMillis();
         mEnabled = true;
-        WatcherManager.get().addTask(this);
+        WatcherManager.get().addTask( this );
         return this;
     }
 
     public final void cancel() {
         mEnabled = false;
-        WatcherManager.get().cancelTask(this);
+        WatcherManager.get().cancelTask( this );
     }
 
     public final boolean isEnabled() {
@@ -74,7 +74,7 @@ public abstract class Watcher {
      * WARN: only to be called by the poller from within the locked area
      */
     private final void notifyTimeExceeded() {
-        if (isEnabled()) {
+        if ( isEnabled() ) {
             cancel();
             onTimeExceeded();
         }
@@ -104,85 +104,70 @@ public abstract class Watcher {
 
         private void startPolling() {
             mPollerLock.lock();
-            Log.t("start polling got lock");
             try {
-                if (mPoller != null) {
+                if ( mPoller != null ) {
                     stopPolling();
                 }
                 mPoller = new WatcherPoller();
-                Log.t("started polling");
                 mPoller.start();
             } finally {
-                Log.t("started polling unlocking");
                 mPollerLock.unlock();
             }
         }
 
         private void stopPolling() {
             mPollerLock.lock();
-            Log.t("stop polling got lock");
             try {
-                if (mPoller != null) {
-                    Log.t("stopped polling");
+                if ( mPoller != null ) {
                     mPoller.stop();
                 }
             } finally {
-                Log.t("stopped polling unlocking");
                 mPollerLock.unlock();
             }
         }
 
-        void addTask(Watcher watcher) {
+        void addTask( Watcher watcher ) {
             mLock.lock();
-            Log.t("addTask got the lock");
             try {
-                Log.t("addTask got the lock - adding");
-                mWatchers.add(watcher);
-                if (mWatchers.size() == 1) {
-                    Log.t("addTask got the lock - adding - starting");
+                mWatchers.add( watcher );
+                if ( mWatchers.size() == 1 ) {
                     startPolling();
                 }
             } finally {
-                Log.t("addTask released the lock");
                 mLock.unlock();
             }
         }
 
-        void cancelTask(Watcher watcher) {
+        void cancelTask( Watcher watcher ) {
             mLock.lock();
-            Log.t("cancelTask got the lock");
             try {
-                Log.t("cancelTask got the lock - canceling");
-                mWatchers.remove(watcher);
-                if (mWatchers.size() == 0) {
-                    Log.t("cancelTask got the lock - canceling - stopping");
+                mWatchers.remove( watcher );
+                if ( mWatchers.size() == 0 ) {
                     stopPolling();
                 }
             } finally {
-                Log.t("cancelTask releasing the lock");
                 mLock.unlock();
             }
         }
 
         /* inner class */
         class WatcherPoller {
-            private AtomicBoolean mRunning = new AtomicBoolean(false);
+            private AtomicBoolean mRunning = new AtomicBoolean( false );
 
             void start() {
-                if (!mRunning.getAndSet(true)) {
-                    Log.t("start polling");
-                    new Thread(new Runnable() {
+                if ( !mRunning.getAndSet( true ) ) {
+                    new Thread( new Runnable() {
 
                         @Override
                         public void run() {
-                            while (mRunning.get()) {
+                            while ( mRunning.get() ) {
                                 mLock.lock();
                                 try {
-                                    if (mWatchers.size() == 0) {
+                                    if ( mWatchers.size() == 0 ) {
                                         stop();
                                     } else {
-                                        for (Watcher watcher : mWatchers) {
-                                            if (watcher.isEnabled() && watcher.isTimeExceeded()) {
+                                        for ( Watcher watcher : mWatchers ) {
+                                            if ( watcher.isEnabled() && watcher.isTimeExceeded() ) {
                                                 watcher.notifyTimeExceeded();
                                             }
                                         }
@@ -193,20 +178,20 @@ public abstract class Watcher {
                                 try {
                                     // in case of concurrent modification of mRunning
                                     // no point in sleeping if we're not running
-                                    if (mRunning.get()) {
-                                        Thread.sleep(mPollingIntervalMillis);
+                                    if ( mRunning.get() ) {
+                                        Thread.sleep( mPollingIntervalMillis );
                                     }
-                                } catch (InterruptedException e) {
+                                } catch ( InterruptedException e ) {
                                     e.printStackTrace();
                                 }
                             }
                         }
-                    }).start();
+                    } ).start();
                 }
             }
 
             void stop() {
-                mRunning.set(false);
+                mRunning.set( false );
             }
         }
     }

@@ -1,6 +1,8 @@
 package com.ath.voucher;
 
+import android.support.annotation.AnyThread;
 import android.support.annotation.Nullable;
+import android.support.annotation.WorkerThread;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -71,11 +73,17 @@ public class VoucherWorker {
      * @return
      */
     @NeverThrows
-    public final <INPUT, RESULT> Voucher<RESULT> enqueueVoucher( @Nullable String key, final INPUT input, final WorkerTask<INPUT, RESULT> task ) {
+    public synchronized final <INPUT, RESULT> Voucher<RESULT> enqueueVoucher( @Nullable String key, final INPUT input, final WorkerTask<INPUT, RESULT> task ) {
         @SuppressWarnings( "unchecked" )
         Voucher<RESULT> voucher = (Voucher<RESULT>) vms.newVoucher( key );
         final String originalKey = key;
         final String generatedKey = voucher.getKey();
+
+        VoucherPayload cachedPayload = cacheGet( originalKey, input ); // the literal key, not the generated one
+        if ( cachedPayload != null ) {
+            voucher.setCachedPayload( cachedPayload );
+            return voucher;
+        }
 
         if ( mLocks.tryLock( generatedKey ) ) {
             try {
@@ -108,26 +116,32 @@ public class VoucherWorker {
     }
 
     /**
+     * Thread Safe within the scope of the given key<br>
      * If the Payload returned is not null, then the payload will be delivered to the vouchers in stead of executing the work.<br>
      * The payload may have a null value if that is what you wish to return but a null vs not-null payload instance is what determines
      * not-cached or cached respectively.
      * <p>
-     * As is, implementing this will not prevent a worker thread from being started.
-     * If you wish to avoid the thread its up to your dao to decide whether or not to enqueue the job, best to check your cache first.
+     * As is, implementing this will prevent a worker thread from being started if a cache-hit is found.
      * <p>
      * PS - you are expected to make sure the input and output type matching is satisfied.  Both input and output should match the input
      * and output assicated with the key used when the request was queued.
+     * <p>
+     * Should be fast enough to respond on the main thread as this gets called both before starting a worker thread and again within the
+     * worker thread before making the network call.<br>
+     * Best practice is to the slow work in cachePut
      *
      * @param key
      * @param input
      * @return null if cache is not present, empty-voucher if value is not present.
      */
+    @AnyThread
     protected VoucherPayload<?> cacheGet( String key, Object input ) {
         return null;
     }
 
     /**
-     * Your thread safe hook to plugging the result into the cache.
+     * Thread Safe within the scope of the given key<br>
+     * Your hook to plugging the result into the cache.
      * Up to you if you want to cache an error or not.
      * <p>
      * PS - you are expected to make sure the input and output type matching is satisfied.  Both input and output should match the input
@@ -137,6 +151,7 @@ public class VoucherWorker {
      * @param input
      * @param result
      */
+    @WorkerThread
     protected void cachePut( String key, Object input, VoucherPayload<?> result ) {
     }
 

@@ -39,6 +39,7 @@ public class Voucher<DATA> {
     private Long mTimeoutMillis;
     private boolean mEnabled = true;
     private LinkedList<VoucherPayload<DATA>> mDisabledPayloads;
+    private VoucherPayload<DATA> mLocalCache = null;
 
     Voucher( VoucherManager<DATA> manager, String idKey ) {
         mManager = new WeakAccessor<>( manager );
@@ -106,7 +107,14 @@ public class Voucher<DATA> {
         this.mListener = listener;
         WeakAccessor.exe( mManager, new DoWhenNotNull<VoucherManager<DATA>>() {
             @Override public void notNull( VoucherManager<DATA> m ) throws Exception {
-                m.notifyVoucher( Voucher.this );
+                // first check our local cache in case we were seeded with a cached payload
+                // else check if theres a payload in the managers cache
+                if ( Voucher.this.mLocalCache != null ) {
+                    m.notifyVoucher( Voucher.this, Voucher.this.mLocalCache );
+                    Voucher.this.mLocalCache = null;
+                } else {
+                    m.notifyVoucher( Voucher.this );
+                }
             }
         }, new DoWhenIsNull() {
             @Override public void isNull() throws Exception {
@@ -114,6 +122,10 @@ public class Voucher<DATA> {
             }
         } );
         return this;
+    }
+
+    final void setCachedPayload( VoucherPayload<DATA> payload ) {
+        this.mLocalCache = payload;
     }
 
     final VoucherPayload<DATA> getPayload() {
